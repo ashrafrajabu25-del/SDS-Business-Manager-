@@ -1,0 +1,191 @@
+
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#10243a">
+<title>SDS Business Manager</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f2f5f9;color:#17283b;font-family:Arial,sans-serif}
+header{background:#10243a;color:white;padding:22px 18px}
+header h2{margin:0 0 6px}
+header p{margin:0;color:#c9d7e5}
+main{max-width:850px;margin:auto;padding:16px}
+.card{background:white;padding:17px;border-radius:14px;margin:12px 0;box-shadow:0 2px 9px #14283b12}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:#fff;padding:15px;border-radius:12px}
+.stat small{color:#64748b}
+.stat strong{display:block;font-size:20px;margin-top:8px;overflow-wrap:anywhere}
+input,select,button{width:100%;padding:13px;margin:7px 0;border-radius:9px;border:1px solid #cbd5e1;font-size:15px}
+button{background:#1265a8;color:white;border:0;font-weight:bold}
+button.secondary{background:#e7eef5;color:#17324d}
+button.danger{background:#b42318}
+label{font-weight:bold;font-size:14px}
+.row{display:flex;gap:8px}
+.row>*{flex:1;min-width:0}
+.item{border-bottom:1px solid #e5eaf0;padding:12px 0}
+.income{color:#13834b}.expense{color:#bd3028}
+h3{margin-top:4px}
+footer{text-align:center;color:#64748b;padding:25px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+<h2> SDS BUSINESS MANAGER</h2>
+<p>Smart Digital Solutions · Usimamizi wa biashara</p>
+</header>
+<main>
+<div class="card">
+<label>Jina la biashara</label>
+<input id="business" placeholder="Andika jina la biashara">
+<button onclick="saveBusiness()">Hifadhi jina la biashara</button>
+</div>
+
+<div class="stats">
+<div class="stat"><small>Salio la sasa</small><strong id="balance">TSh 0</strong></div>
+<div class="stat"><small>Jumla ya mapato</small><strong id="income">TSh 0</strong></div>
+<div class="stat"><small>Jumla ya matumizi</small><strong id="expenses">TSh 0</strong></div>
+<div class="stat"><small>Faida / Hasara</small><strong id="profit">TSh 0</strong></div>
+</div>
+
+<div class="card">
+<h3>Rekodi muamala</h3>
+<label>Aina ya muamala</label>
+<select id="type">
+<option value="income">Mapato</option>
+<option value="expense">Matumizi</option>
+</select>
+<label>Kiasi (TSh)</label>
+<input id="amount" type="number" min="1" placeholder="Mfano 10000">
+<label>Maelezo</label>
+<input id="note" placeholder="Mfano: Mauzo ya bidhaa">
+<button onclick="addTransaction()">Hifadhi muamala</button>
+</div>
+
+<div class="card">
+<h3>Historia ya miamala</h3>
+<div class="row">
+<button class="secondary" onclick="exportCSV()">Pakua ripoti CSV</button>
+<button class="secondary" onclick="backup()">Backup</button>
+</div>
+<div id="transactions"></div>
+</div>
+
+<div class="card">
+<h3>Rejesha backup</h3>
+<input type="file" id="restoreFile" accept=".json">
+<button class="secondary" onclick="restoreBackup()">Rejesha taarifa</button>
+</div>
+
+<div class="card">
+<h3>Muhtasari</h3>
+<p id="summary">Bado hakuna miamala.</p>
+<button class="danger" onclick="clearData()">Futa taarifa zote</button>
+</div>
+</main>
+<footer>© Smart Digital Solutions · SDS Business Manager</footer>
+
+<script>
+const KEY="sds_business_manager_v1";
+let data=JSON.parse(localStorage.getItem(KEY)||'{"business":"","transactions":[]}');
+
+function money(n){
+ return "TSh "+Number(n||0).toLocaleString("en-US");
+}
+function save(){
+ localStorage.setItem(KEY,JSON.stringify(data));
+ render();
+}
+function saveBusiness(){
+ data.business=document.getElementById("business").value.trim();
+ save();
+ alert("Jina la biashara limehifadhiwa.");
+}
+function addTransaction(){
+ const type=document.getElementById("type").value;
+ const amount=Number(document.getElementById("amount").value);
+ const note=document.getElementById("note").value.trim();
+ if(!Number.isFinite(amount)||amount<=0){
+  alert("Weka kiasi sahihi.");return;
+ }
+ data.transactions.unshift({
+  id:Date.now(),type,amount,note,
+  date:new Date().toISOString()
+ });
+ document.getElementById("amount").value="";
+ document.getElementById("note").value="";
+ save();
+ alert("Muamala umehifadhiwa.");
+}
+function removeTransaction(id){
+ if(!confirm("Una uhakika unataka kufuta muamala huu?"))return;
+ data.transactions=data.transactions.filter(t=>t.id!==id);
+ save();
+}
+function render(){
+ document.getElementById("business").value=data.business||"";
+ const inc=data.transactions.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
+ const exp=data.transactions.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+ document.getElementById("income").textContent=money(inc);
+ document.getElementById("expenses").textContent=money(exp);
+ document.getElementById("balance").textContent=money(inc-exp);
+ document.getElementById("profit").textContent=money(inc-exp);
+ document.getElementById("summary").textContent=
+  data.transactions.length+" miamala imehifadhiwa. Mapato ukitoa matumizi = "+money(inc-exp);
+ const list=document.getElementById("transactions");
+ if(!data.transactions.length){list.innerHTML="<p>Hakuna miamala bado.</p>";return;}
+ list.innerHTML=data.transactions.map(t=>`
+ <div class="item">
+ <b class="${t.type==="income"?"income":"expense"}">
+ ${t.type==="income"?"MAPATO":"MATUMIZI"} · ${money(t.amount)}
+ </b>
+ <div>${escapeHTML(t.note||"Hakuna maelezo")}</div>
+ <small>${new Date(t.date).toLocaleString()}</small>
+ <button class="danger" onclick="removeTransaction(${t.id})">Futa muamala</button>
+ </div>`).join("");
+}
+function escapeHTML(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+function exportCSV(){
+ const rows=[["Aina","Kiasi","Maelezo","Tarehe"]];
+ data.transactions.forEach(t=>rows.push([
+ t.type,t.amount,t.note,new Date(t.date).toLocaleString()
+ ]));
+ const csv=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\n");
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));
+ a.download="SDS-ripoti.csv";a.click();
+ URL.revokeObjectURL(a.href);
+}
+function backup(){
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));
+ a.download="SDS-backup.json";a.click();
+ URL.revokeObjectURL(a.href);
+}
+function restoreBackup(){
+ const file=document.getElementById("restoreFile").files[0];
+ if(!file){alert("Chagua backup kwanza.");return;}
+ const reader=new FileReader();
+ reader.onload=()=>{
+  try{
+   const restored=JSON.parse(reader.result);
+   if(!restored||!Array.isArray(restored.transactions))throw Error();
+   data=restored;save();alert("Backup imerejeshwa.");
+  }catch(e){alert("Faili la backup si sahihi.");}
+ };
+ reader.readAsText(file);
+}
+function clearData(){
+ if(!confirm("Tahadhari: taarifa zote zitafutwa kwenye kifaa hiki. Una uhakika?"))return;
+ data={business:"",transactions:[]};save();
+}
+render();
+</script>
+</body>
+</html>
